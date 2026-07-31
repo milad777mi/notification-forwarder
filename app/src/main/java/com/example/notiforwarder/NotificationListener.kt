@@ -7,18 +7,28 @@ import kotlinx.coroutines.*
 
 class NotificationListener : NotificationListenerService() {
 
-    // بسته‌های مربوط به تماس (باید عنوان "تماس‌های بی‌پاسخ" داشته باشند)
     private val callPackages = setOf(
         "com.samsung.android.dialer",
         "com.android.phone",
         "com.samsung.android.incallui"
     )
 
-    // بسته پیام‌ها (همه اعلان‌هایش مجاز است)
     private val messagePackage = "com.samsung.android.messaging"
 
     private val job = SupervisorJob()
     private val scope = CoroutineScope(Dispatchers.IO + job)
+
+    override fun onCreate() {
+        super.onCreate()
+        Sender.init(this)
+    }
+
+    override fun onListenerConnected() {
+        super.onListenerConnected()
+        scope.launch {
+            Sender.drainQueue()
+        }
+    }
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         super.onNotificationPosted(sbn)
@@ -27,15 +37,12 @@ class NotificationListener : NotificationListenerService() {
         val pkg = sbn.packageName
 
         when {
-            pkg == messagePackage -> {
-                // پیام‌ها: همه اعلان‌ها ارسال شود
-            }
+            pkg == messagePackage -> {}
             pkg in callPackages -> {
-                // تماس: فقط اگر عنوان دقیقاً "تماس‌های بی‌پاسخ" باشد
                 val title = sbn.notification.extras.getString(Notification.EXTRA_TITLE) ?: ""
                 if (title != "تماس‌های بی‌پاسخ") return
             }
-            else -> return  // سایر برنامه‌ها مجاز نیستند
+            else -> return
         }
 
         val packageName = pkg
