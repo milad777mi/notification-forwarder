@@ -1,7 +1,9 @@
 package com.example.notiforwarder
 
+import android.app.Notification
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
+import android.widget.Toast
 import kotlinx.coroutines.*
 
 class NotificationListener : NotificationListenerService() {
@@ -12,10 +14,12 @@ class NotificationListener : NotificationListenerService() {
     override fun onCreate() {
         super.onCreate()
         Sender.init(this)
+        Toast.makeText(this, "سرویس ساخته شد", Toast.LENGTH_SHORT).show()
     }
 
     override fun onListenerConnected() {
         super.onListenerConnected()
+        Toast.makeText(this, "سرویس متصل شد", Toast.LENGTH_SHORT).show()
         scope.launch {
             Sender.drainQueue()
         }
@@ -25,10 +29,13 @@ class NotificationListener : NotificationListenerService() {
         super.onNotificationPosted(sbn)
         sbn ?: return
 
+        // Toast برای نمایش دریافت اعلان
+        Toast.makeText(this, "اعلان دریافت شد: ${sbn.packageName}", Toast.LENGTH_SHORT).show()
+
         val packageName = sbn.packageName
         val extras = sbn.notification.extras
-        val title = extras.getString(android.app.Notification.EXTRA_TITLE) ?: ""
-        val text = extras.getCharSequence(android.app.Notification.EXTRA_TEXT)?.toString() ?: ""
+        val title = extras.getString(Notification.EXTRA_TITLE) ?: ""
+        val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() ?: ""
         val time = sbn.postTime
 
         val appName = getAppName(packageName)
