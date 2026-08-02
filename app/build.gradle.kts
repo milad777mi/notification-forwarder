@@ -9,7 +9,7 @@ android {
 
     defaultConfig {
         applicationId = "com.example.notiforwarder"
-        minSdk = 19
+        minSdk = 18
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
