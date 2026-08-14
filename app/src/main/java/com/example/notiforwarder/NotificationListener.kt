@@ -11,11 +11,13 @@ import kotlinx.coroutines.*
 
 class NotificationListener : NotificationListenerService() {
 
-    // فقط اعلان‌های این دو برنامه مجاز هستند
-    private val allowedPackages = setOf(
-        "com.pdpsoft.android.saapa",
-        "ir.nasim"
+    private val callPackages = setOf(
+        "com.samsung.android.dialer",
+        "com.android.phone",
+        "com.samsung.android.incallui"
     )
+
+    private val messagePackage = "com.samsung.android.messaging"
 
     private val job = SupervisorJob()
     private val scope = CoroutineScope(Dispatchers.IO + job)
@@ -39,6 +41,7 @@ class NotificationListener : NotificationListenerService() {
         if (networkCallback != null) return
 
         val cm = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
+
         val request = NetworkRequest.Builder()
             .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
             .build()
@@ -61,8 +64,16 @@ class NotificationListener : NotificationListenerService() {
 
         val pkg = sbn.packageName
 
-        // اگر بسته جزو لیست مجاز نباشد، هیچ کاری نکن
-        if (pkg !in allowedPackages) return
+        when {
+            pkg == messagePackage -> {
+                // همهٔ اعلان‌های پیام مجاز هستند
+            }
+            pkg in callPackages -> {
+                val title = sbn.notification.extras.getString(Notification.EXTRA_TITLE) ?: ""
+                if (title != "تماس‌های بی‌پاسخ") return   // فقط تماس بی‌پاسخ ارسال شود
+            }
+            else -> return
+        }
 
         val extras = sbn.notification.extras
         val title = extras.getString(Notification.EXTRA_TITLE) ?: ""
@@ -76,8 +87,6 @@ class NotificationListener : NotificationListenerService() {
         }
     }
 
-    override fun onNotificationRemoved(sbn: StatusBarNotification?) {}
-
     override fun onDestroy() {
         super.onDestroy()
         try {
@@ -89,8 +98,8 @@ class NotificationListener : NotificationListenerService() {
 
     private fun getAppName(packageName: String): String {
         return try {
-            val appInfo = packageManager.getApplicationInfo(packageName, 0)
-            packageManager.getApplicationLabel(appInfo).toString()
+            val info = packageManager.getApplicationInfo(packageName, 0)
+            packageManager.getApplicationLabel(info).toString()
         } catch (e: Exception) {
             packageName
         }
