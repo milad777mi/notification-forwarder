@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.notiforwarder"
+    namespace = "com.example.notiforwarderPANEL"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.example.notiforwarder"
+        applicationId = "com.example.notiforwarderPANEL"
         minSdk = 26
         targetSdk = 34
         versionCode = 1
