@@ -1,4 +1,4 @@
-package com.example.notiforwarder
+package com.example.notiforwarderPANEL
 
 import android.app.Notification
 import android.net.ConnectivityManager
