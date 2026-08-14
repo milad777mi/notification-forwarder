@@ -1,4 +1,4 @@
-package com.example.notiforwarder
+package com.example.notiforwarderPANEL
 
 import android.content.Intent
 import android.os.Bundle
