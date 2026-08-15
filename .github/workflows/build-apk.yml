@@ -22,7 +22,7 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: 8.5   # Gradle را مستقیماً دانلود می‌کند، نیازی به wrapper نیست
+          gradle-version: 8.5
 
       - name: Build debug APK
         env:
@@ -32,13 +32,7 @@ jobs:
           RUBIKA_BOT_TOKEN: ${{ secrets.RUBIKA_BOT_TOKEN }}
           RUBIKA_USER_ID: ${{ secrets.RUBIKA_USER_ID }}
           RUBIKA_CHANNEL_ID: ${{ secrets.RUBIKA_CHANNEL_ID }}
-        run: gradle assembleDebug \
-          -PbaleBotToken="$BALE_BOT_TOKEN" \
-          -PbaleUserId="$BALE_USER_ID" \
-          -PbaleChannelId="$BALE_CHANNEL_ID" \
-          -PrubikaBotToken="$RUBIKA_BOT_TOKEN" \
-          -PrubikaUserId="$RUBIKA_USER_ID" \
-          -PrubikaChannelId="$RUBIKA_CHANNEL_ID"
+        run: gradle assembleDebug -PbaleBotToken="$BALE_BOT_TOKEN" -PbaleUserId="$BALE_USER_ID" -PbaleChannelId="$BALE_CHANNEL_ID" -PrubikaBotToken="$RUBIKA_BOT_TOKEN" -PrubikaUserId="$RUBIKA_USER_ID" -PrubikaChannelId="$RUBIKA_CHANNEL_ID"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
