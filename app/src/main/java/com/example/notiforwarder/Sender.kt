@@ -26,6 +26,8 @@ object Sender {
 
     private const val queueFileName = "pending_notifications.json"
     private const val logFileName = "sender_log.txt"
+    private const val dedupFileName = "sent_keys.txt"
+    private const val DEDUP_TTL = 60 * 60 * 1000L   // ۱ ساعت
     private val mutex = Mutex()
 
     fun init(appContext: Context) {
@@ -38,8 +40,15 @@ object Sender {
         pkg: String,
         title: String,
         text: String,
-        time: Long
+        time: Long,
+        notificationKey: String = ""
     ) {
+        // بررسی تکراری بودن
+        if (notificationKey.isNotBlank() && isDuplicate(notificationKey)) {
+            log("Duplicate notification skipped: $notificationKey")
+            return
+        }
+
         if (BALE_BOT_TOKEN.isBlank() && RUBIKA_BOT_TOKEN.isBlank()) {
             log("Error: No tokens configured")
             return
@@ -50,6 +59,10 @@ object Sender {
 
         var allFailed = true
         for ((type, chatId) in destinations) {
+            // برای روبیکا تأخیر بگذار
+            if (type.startsWith("rubika")) {
+                delay(1500)
+            }
             val success = sendToDestination(type, chatId, message)
             if (success) {
                 log("Success to $type ($chatId)")
@@ -67,9 +80,14 @@ object Sender {
                 put("title", title)
                 put("text", text)
                 put("time", time.toString())
+                put("key", notificationKey)
             }
             saveToQueue(payload)
         } else {
+            // علامت‌گذاری به‌عنوان ارسال‌شده
+            if (notificationKey.isNotBlank()) {
+                markAsSent(notificationKey)
+            }
             log("At least one destination succeeded, draining queue")
             drainQueue()
         }
@@ -81,6 +99,9 @@ object Sender {
         val destinations = getDestinations()
         var anySuccess = false
         for ((type, chatId) in destinations) {
+            if (type.startsWith("rubika")) {
+                delay(1500)
+            }
             val success = sendToDestination(type, chatId, testMessage)
             if (success) {
                 log("Test success to $type ($chatId)")
@@ -129,10 +150,8 @@ object Sender {
                     }
                     "rubika_user", "rubika_channel" -> {
                         url = URL("https://botapi.rubika.ir/v3/${RUBIKA_BOT_TOKEN}/sendMessage")
-                        // استفاده مستقیم از chat_id
                         payload.put("chat_id", chatId)
                         payload.put("text", message)
-                        // افزودن random_id (روبیکا نیاز دارد)
                         payload.put("random_id", UUID.randomUUID().toString())
                     }
                     else -> return@withContext false
@@ -168,6 +187,57 @@ object Sender {
             }
         }
     }
+
+    // ======================= توابع ضدتکرار =======================
+
+    private suspend fun isDuplicate(key: String): Boolean {
+        if (key.isBlank()) return false
+        val ctx = context ?: return false
+        return withContext(Dispatchers.IO) {
+            try {
+                val file = File(ctx.filesDir, dedupFileName)
+                if (!file.exists()) return@withContext false
+                val now = System.currentTimeMillis()
+                val lines = file.readLines()
+                lines.any { line ->
+                    val parts = line.split("|")
+                    if (parts.size == 2) {
+                        val savedKey = parts[0]
+                        val savedTime = parts[1].toLongOrNull() ?: 0
+                        savedKey == key && (now - savedTime) < DEDUP_TTL
+                    } else false
+                }
+            } catch (_: Exception) {
+                false
+            }
+        }
+    }
+
+    private suspend fun markAsSent(key: String) {
+        if (key.isBlank()) return
+        val ctx = context ?: return
+        withContext(Dispatchers.IO) {
+            try {
+                val file = File(ctx.filesDir, dedupFileName)
+                val now = System.currentTimeMillis()
+                val lines = file.readLines().toMutableList()
+                // حذف کلیدهای منقضی‌شده
+                val cleaned = lines.filter { line ->
+                    val parts = line.split("|")
+                    if (parts.size == 2) {
+                        val time = parts[1].toLongOrNull() ?: 0
+                        (now - time) < DEDUP_TTL
+                    } else false
+                }.toMutableList()
+                cleaned.add("$key|$now")
+                // نگه داشتن 200 کلید آخر
+                val final = if (cleaned.size > 200) cleaned.takeLast(200) else cleaned
+                file.writeText(final.joinToString("\n"))
+            } catch (_: Exception) {}
+        }
+    }
+
+    // ======================= صف و لاگ =======================
 
     private suspend fun saveToQueue(payload: JSONObject) {
         mutex.withLock {
@@ -207,17 +277,31 @@ object Sender {
                             val title = json.getString("title")
                             val text = json.getString("text")
                             val time = json.getLong("time")
+                            val key = json.optString("key", "")
+
+                            // اگر این کلید قبلاً ارسال شده بود، از صف حذف کن
+                            if (key.isNotBlank() && isDuplicate(key)) {
+                                iterator.remove()
+                                changed = true
+                                continue
+                            }
 
                             val message = buildMessage(app, pkg, title, text, time)
                             val destinations = getDestinations()
                             var allFailed = true
                             for ((type, chatId) in destinations) {
+                                if (type.startsWith("rubika")) {
+                                    delay(1500)
+                                }
                                 if (sendToDestination(type, chatId, message)) {
                                     allFailed = false
                                 }
                             }
 
                             if (!allFailed) {
+                                if (key.isNotBlank()) {
+                                    markAsSent(key)
+                                }
                                 iterator.remove()
                                 changed = true
                             } else {
