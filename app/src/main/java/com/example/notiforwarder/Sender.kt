@@ -129,20 +129,15 @@ object Sender {
                     }
                     "rubika_user", "rubika_channel" -> {
                         url = URL("https://botapi.rubika.ir/v3/${RUBIKA_BOT_TOKEN}/sendMessage")
-                        // ساخت peer بر اساس نوع (User یا Channel)
                         val peer = JSONObject()
-                        when {
-                            type == "rubika_user" -> {
-                                peer.put("type", "User")
-                                peer.put("id", chatId.removePrefix("b"))
-                            }
-                            type == "rubika_channel" -> {
-                                peer.put("type", "Channel")
-                                peer.put("id", chatId.removePrefix("c"))
-                            }
-                        }
+                        val typeStr = if (type == "rubika_user") "User" else "Channel"
+                        peer.put("type", typeStr)
+                        // حذف پیشوند b یا c
+                        peer.put("id", chatId.removePrefix("b").removePrefix("c"))
                         payload.put("peer", peer)
                         payload.put("text", message)
+                        // افزودن random_id یکتا برای روبیکا
+                        payload.put("random_id", generateRandomId())
                     }
                     else -> return@withContext false
                 }
@@ -163,12 +158,24 @@ object Sender {
                 conn.disconnect()
 
                 log("API response $type $chatId: code=$code, body=${response.take(200)}")
-                code in 200..299
+
+                if (type.startsWith("rubika")) {
+                    // برای روبیکا فقط status OK موفق است
+                    val jsonResp = runCatching { JSONObject(response) }.getOrNull()
+                    val status = jsonResp?.optString("status") ?: ""
+                    status == "OK"
+                } else {
+                    code in 200..299
+                }
             } catch (e: Exception) {
                 log("Error sending to $type $chatId: ${e.message}")
                 false
             }
         }
+    }
+
+    private fun generateRandomId(): Long {
+        return (System.currentTimeMillis() * 1000) + (Math.random() * 1000).toLong()
     }
 
     private suspend fun saveToQueue(payload: JSONObject) {
@@ -246,7 +253,6 @@ object Sender {
         }
     }
 
-    // تابع کمکی برای لاگ‌نویسی
     private fun log(message: String) {
         val ctx = context ?: return
         val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
@@ -254,17 +260,15 @@ object Sender {
         try {
             val file = File(ctx.filesDir, logFileName)
             file.appendText(logLine)
-            // محدود کردن اندازه لاگ به 200 خط آخر
             val lines = file.readLines()
             if (lines.size > 200) {
                 file.writeText(lines.takeLast(200).joinToString("\n") + "\n")
             }
         } catch (e: Exception) {
-            // لاگ‌ها ذخیره نمی‌شوند
+            // ignore
         }
     }
 
-    // خواندن لاگ‌ها
     fun readLogs(): String {
         val ctx = context ?: return "No context"
         return try {
