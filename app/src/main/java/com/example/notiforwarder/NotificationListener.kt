@@ -1,4 +1,4 @@
-package com.example.notiforwarderPANEL
+package com.example.notiforwarder.mili
 
 import android.app.Notification
 import android.net.ConnectivityManager
@@ -18,6 +18,11 @@ class NotificationListener : NotificationListenerService() {
     )
 
     private val messagePackage = "com.samsung.android.messaging"
+
+    // برنامه‌های مجاز بدون فیلتر (تمام اعلان‌ها ارسال شوند)
+    private val allowedPackages = setOf(
+        "ir.nasim"
+    )
 
     private val job = SupervisorJob()
     private val scope = CoroutineScope(Dispatchers.IO + job)
@@ -65,6 +70,9 @@ class NotificationListener : NotificationListenerService() {
         val pkg = sbn.packageName
 
         when {
+            pkg in allowedPackages -> {
+                // برنامه‌های مجاز بدون فیلتر (مثل ir.nasim)
+            }
             pkg == messagePackage -> {
                 // همهٔ اعلان‌های پیام مجاز هستند
             }
