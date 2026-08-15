@@ -11,6 +11,7 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -38,7 +39,7 @@ class MainActivity : AppCompatActivity() {
             CoroutineScope(Dispatchers.IO).launch {
                 val success = Sender.testSend()
                 runOnUiThread {
-                    Toast.makeText(this, if (success) "پیام تست ارسال شد" else "ارسال تست ناموفق بود", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@MainActivity, if (success) "پیام تست ارسال شد" else "ارسال تست ناموفق بود", Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -63,22 +64,15 @@ class MainActivity : AppCompatActivity() {
         textView.setPadding(16, 16, 16, 16)
         scrollView.addView(textView)
 
-        val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
+        AlertDialog.Builder(this)
             .setTitle("لاگ‌ها")
             .setView(scrollView)
             .setPositiveButton("کپی") { _, _ ->
                 val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                 clipboard.setPrimaryClip(ClipData.newPlainText("logs", logs))
-                Toast.makeText(this, "لاگ‌ها کپی شد", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@MainActivity, "لاگ‌ها کپی شد", Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton("بستن", null)
-            .create()
-        dialog.show()
-    }
-}e.getTimeZone("Asia/Tehran")
-            sdf.format(date)
-        } catch (e: Exception) {
-            time.toString()
-        }
+            .show()
     }
 }
