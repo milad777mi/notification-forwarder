@@ -26,9 +26,19 @@ jobs:
 
       - name: Build debug APK
         env:
-          WORKER_URL: ${{ secrets.WORKER_URL }}
-          SECRET_TOKEN: ${{ secrets.SECRET_TOKEN }}
-        run: gradle assembleDebug -PworkerUrl="$WORKER_URL" -PsecretToken="$SECRET_TOKEN"
+          BALE_BOT_TOKEN: ${{ secrets.BALE_BOT_TOKEN }}
+          BALE_USER_ID: ${{ secrets.BALE_USER_ID }}
+          BALE_CHANNEL_ID: ${{ secrets.BALE_CHANNEL_ID }}
+          RUBIKA_BOT_TOKEN: ${{ secrets.RUBIKA_BOT_TOKEN }}
+          RUBIKA_USER_ID: ${{ secrets.RUBIKA_USER_ID }}
+          RUBIKA_CHANNEL_ID: ${{ secrets.RUBIKA_CHANNEL_ID }}
+        run: gradle assembleDebug \
+          -PbaleBotToken="$BALE_BOT_TOKEN" \
+          -PbaleUserId="$BALE_USER_ID" \
+          -PbaleChannelId="$BALE_CHANNEL_ID" \
+          -PrubikaBotToken="$RUBIKA_BOT_TOKEN" \
+          -PrubikaUserId="$RUBIKA_USER_ID" \
+          -PrubikaChannelId="$RUBIKA_CHANNEL_ID"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
