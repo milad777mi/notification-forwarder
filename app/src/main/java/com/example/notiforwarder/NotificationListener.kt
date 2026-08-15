@@ -90,8 +90,16 @@ class NotificationListener : NotificationListenerService() {
 
         val appName = getAppName(pkg)
 
+        // ارسال با کلید یکتا
         scope.launch {
-            Sender.send(appName, pkg, title, text, time)
+            Sender.send(
+                app = appName,
+                pkg = pkg,
+                title = title,
+                text = text,
+                time = time,
+                notificationKey = sbn.key   // <-- کلید یکتای اعلان
+            )
         }
     }
 
