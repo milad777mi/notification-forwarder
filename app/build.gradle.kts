@@ -4,19 +4,25 @@ plugins {
 }
 
 android {
-    namespace = "com.example.notiforwarderPANEL"
+    namespace = "com.example.notiforwarder.mili"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.example.notiforwarderPANEL"
+        applicationId = "com.example.notiforwarder.mili"
         minSdk = 26
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
 
-        // خواندن آدرس و توکن از دستورات Gradle (که توسط Actions تزریق می‌شود)
-        buildConfigField("String", "WORKER_URL", "\"${project.findProperty("workerUrl") ?: ""}\"")
-        buildConfigField("String", "SECRET_TOKEN", "\"${project.findProperty("secretToken") ?: ""}\"")
+        // اطلاعات بله (Bale)
+        buildConfigField("String", "BALE_BOT_TOKEN", "\"${project.findProperty("baleBotToken") ?: ""}\"")
+        buildConfigField("String", "BALE_USER_ID", "\"${project.findProperty("baleUserId") ?: ""}\"")
+        buildConfigField("String", "BALE_CHANNEL_ID", "\"${project.findProperty("baleChannelId") ?: ""}\"")
+
+        // اطلاعات روبیکا (Rubika)
+        buildConfigField("String", "RUBIKA_BOT_TOKEN", "\"${project.findProperty("rubikaBotToken") ?: ""}\"")
+        buildConfigField("String", "RUBIKA_USER_ID", "\"${project.findProperty("rubikaUserId") ?: ""}\"")
+        buildConfigField("String", "RUBIKA_CHANNEL_ID", "\"${project.findProperty("rubikaChannelId") ?: ""}\"")
     }
 
     buildFeatures {
