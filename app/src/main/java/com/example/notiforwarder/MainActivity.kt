@@ -39,7 +39,11 @@ class MainActivity : AppCompatActivity() {
             CoroutineScope(Dispatchers.IO).launch {
                 val success = Sender.testSend()
                 runOnUiThread {
-                    Toast.makeText(this@MainActivity, if (success) "پیام تست ارسال شد" else "ارسال تست ناموفق بود", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(
+                        this@MainActivity,
+                        if (success) "پیام تست ارسال شد" else "ارسال تست ناموفق بود",
+                        Toast.LENGTH_SHORT
+                    ).show()
                 }
             }
         }
@@ -48,8 +52,12 @@ class MainActivity : AppCompatActivity() {
         val btnLogs = Button(this)
         btnLogs.text = "نمایش لاگ‌ها"
         btnLogs.setOnClickListener {
-            val logs = Sender.readLogs()
-            showLogsDialog(logs)
+            CoroutineScope(Dispatchers.IO).launch {
+                val logs = Sender.readLogs()
+                runOnUiThread {
+                    showLogsDialog(logs)
+                }
+            }
         }
         layout.addView(btnLogs)
 
