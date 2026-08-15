@@ -16,17 +16,21 @@ object Sender {
 
     private var context: Context? = null
 
+    // اطلاعات بله (Bale)
     private val BALE_BOT_TOKEN = BuildConfig.BALE_BOT_TOKEN
     private val BALE_USER_ID = BuildConfig.BALE_USER_ID
     private val BALE_CHANNEL_ID = BuildConfig.BALE_CHANNEL_ID
 
+    // اطلاعات روبیکا (Rubika)
     private val RUBIKA_BOT_TOKEN = BuildConfig.RUBIKA_BOT_TOKEN
     private val RUBIKA_USER_ID = BuildConfig.RUBIKA_USER_ID
     private val RUBIKA_CHANNEL_ID = BuildConfig.RUBIKA_CHANNEL_ID
 
     private const val queueFileName = "pending_notifications.json"
-    private const val logFileName = "sender_log.txt"
+    private const val logFileName = "sender_logs.txt"
+
     private val mutex = Mutex()
+    private val logMutex = Mutex()
 
     fun init(appContext: Context) {
         context = appContext.applicationContext
@@ -40,27 +44,21 @@ object Sender {
         text: String,
         time: Long
     ) {
-        if (BALE_BOT_TOKEN.isBlank() && RUBIKA_BOT_TOKEN.isBlank()) {
-            log("Error: No tokens configured")
-            return
-        }
+        if (BALE_BOT_TOKEN.isBlank() && RUBIKA_BOT_TOKEN.isBlank()) return
 
         val message = buildMessage(app, pkg, title, text, time)
-        val destinations = getDestinations()
+
+        val destinations = buildDestinations()
 
         var allFailed = true
         for ((type, chatId) in destinations) {
             val success = sendToDestination(type, chatId, message)
             if (success) {
-                log("Success to $type ($chatId)")
                 allFailed = false
-            } else {
-                log("Failed to $type ($chatId)")
             }
         }
 
         if (allFailed) {
-            log("All destinations failed, saving to queue")
             val payload = JSONObject().apply {
                 put("app", app)
                 put("package", pkg)
@@ -70,40 +68,59 @@ object Sender {
             }
             saveToQueue(payload)
         } else {
-            log("At least one destination succeeded, draining queue")
             drainQueue()
         }
     }
 
+    // تست ارسال پیام به همه مقصدها
     suspend fun testSend(): Boolean {
         log("Test send started")
-        val testMessage = "🔔 پیام تست از برنامه\nزمان: ${formatTime(System.currentTimeMillis())}"
-        val destinations = getDestinations()
+        val message = "🚀 تست ارسال از NotiForwarder"
+
+        val destinations = buildDestinations()
+        if (destinations.isEmpty()) {
+            log("Test failed: no destinations configured")
+            return false
+        }
+
         var anySuccess = false
         for ((type, chatId) in destinations) {
-            val success = sendToDestination(type, chatId, testMessage)
-            if (success) {
-                log("Test success to $type ($chatId)")
-                anySuccess = true
-            } else {
-                log("Test failed to $type ($chatId)")
-            }
+            val success = sendToDestination(type, chatId, message)
+            if (success) anySuccess = true
         }
+
         log("Test send finished, anySuccess=$anySuccess")
         return anySuccess
     }
 
-    private fun getDestinations(): List<Pair<String, String>> {
-        val list = mutableListOf<Pair<String, String>>()
-        if (BALE_BOT_TOKEN.isNotBlank() && BALE_USER_ID.isNotBlank())
-            list.add(Pair("bale_user", BALE_USER_ID))
-        if (BALE_BOT_TOKEN.isNotBlank() && BALE_CHANNEL_ID.isNotBlank())
-            list.add(Pair("bale_channel", BALE_CHANNEL_ID))
-        if (RUBIKA_BOT_TOKEN.isNotBlank() && RUBIKA_USER_ID.isNotBlank())
-            list.add(Pair("rubika_user", RUBIKA_USER_ID))
-        if (RUBIKA_BOT_TOKEN.isNotBlank() && RUBIKA_CHANNEL_ID.isNotBlank())
-            list.add(Pair("rubika_channel", RUBIKA_CHANNEL_ID))
-        return list
+    // خواندن لاگ‌ها
+    suspend fun readLogs(): String {
+        return mutex.withLock {
+            withContext(Dispatchers.IO) {
+                val ctx = context ?: return@withContext ""
+                val file = File(ctx.filesDir, logFileName)
+                if (file.exists()) file.readText() else "هیچ لاگی ثبت نشده است"
+            }
+        }
+    }
+
+    private fun buildDestinations(): List<Pair<String, String>> {
+        val destinations = mutableListOf<Pair<String, String>>()
+
+        if (BALE_BOT_TOKEN.isNotBlank() && BALE_USER_ID.isNotBlank()) {
+            destinations.add(Pair("bale_user", BALE_USER_ID))
+        }
+        if (BALE_BOT_TOKEN.isNotBlank() && BALE_CHANNEL_ID.isNotBlank()) {
+            destinations.add(Pair("bale_channel", BALE_CHANNEL_ID))
+        }
+        if (RUBIKA_BOT_TOKEN.isNotBlank() && RUBIKA_USER_ID.isNotBlank()) {
+            destinations.add(Pair("rubika_user", RUBIKA_USER_ID))
+        }
+        if (RUBIKA_BOT_TOKEN.isNotBlank() && RUBIKA_CHANNEL_ID.isNotBlank()) {
+            destinations.add(Pair("rubika_channel", RUBIKA_CHANNEL_ID))
+        }
+
+        return destinations
     }
 
     private fun buildMessage(app: String, pkg: String, title: String, text: String, time: Long): String {
@@ -129,7 +146,7 @@ object Sender {
                     }
                     "rubika_user", "rubika_channel" -> {
                         url = URL("https://botapi.rubika.ir/v3/${RUBIKA_BOT_TOKEN}/sendMessage")
-                        payload.put("chat_id", chatId)
+                        payload.put("peer_id", chatId)   // ✅ اصلاح شد
                         payload.put("text", message)
                     }
                     else -> return@withContext false
@@ -147,11 +164,32 @@ object Sender {
                 }
 
                 val code = conn.responseCode
-                val response = conn.inputStream?.bufferedReader()?.readText() ?: ""
+                val body = if (code in 200..299) {
+                    conn.inputStream.bufferedReader().use { it.readText() }
+                } else {
+                    conn.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
+                }
                 conn.disconnect()
 
-                log("API response $type $chatId: code=$code, body=${response.take(200)}")
-                code in 200..299
+                log("API response $type $chatId: code=$code, body=$body")
+
+                if (code !in 200..299) {
+                    log("Test failed to $type ($chatId)")
+                    return@withContext false
+                }
+
+                // بررسی وضعیت واقعی پاسخ روبیکا
+                if (type.startsWith("rubika")) {
+                    val json = JSONObject(body)
+                    val status = json.optString("status")
+                    if (status != "OK") {
+                        log("Rubika error: $status for $type ($chatId)")
+                        return@withContext false
+                    }
+                }
+
+                log("Test success to $type ($chatId)")
+                true
             } catch (e: Exception) {
                 log("Error sending to $type $chatId: ${e.message}")
                 false
@@ -168,7 +206,6 @@ object Sender {
 
                     val file = File(ctx.filesDir, queueFileName)
                     file.appendText(payload.toString() + "\n")
-                    log("Saved to queue, current queue size: ${file.length()} bytes")
                 } catch (e: Exception) {
                     log("Error saving to queue: ${e.message}")
                 }
@@ -199,7 +236,8 @@ object Sender {
                             val time = json.getLong("time")
 
                             val message = buildMessage(app, pkg, title, text, time)
-                            val destinations = getDestinations()
+
+                            val destinations = buildDestinations()
                             var allFailed = true
                             for ((type, chatId) in destinations) {
                                 if (sendToDestination(type, chatId, message)) {
@@ -214,6 +252,7 @@ object Sender {
                                 break
                             }
                         } catch (e: Exception) {
+                            log("Error processing queue line: ${e.message}")
                             break
                         }
                     }
@@ -221,45 +260,14 @@ object Sender {
                     if (changed) {
                         if (lines.isEmpty()) {
                             file.delete()
-                            log("Queue drained, file deleted")
                         } else {
                             file.writeText(lines.joinToString("\n") + "\n")
-                            log("Queue partially drained, ${lines.size} left")
                         }
                     }
                 } catch (e: Exception) {
-                    log("Error in drainQueue: ${e.message}")
+                    log("Error draining queue: ${e.message}")
                 }
             }
-        }
-    }
-
-    // تابع کمکی برای لاگ‌نویسی
-    private fun log(message: String) {
-        val ctx = context ?: return
-        val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
-        val logLine = "[$timestamp] $message\n"
-        try {
-            val file = File(ctx.filesDir, logFileName)
-            file.appendText(logLine)
-            // محدود کردن اندازه لاگ به 200 خط آخر
-            val lines = file.readLines()
-            if (lines.size > 200) {
-                file.writeText(lines.takeLast(200).joinToString("\n") + "\n")
-            }
-        } catch (e: Exception) {
-            // لاگ‌ها ذخیره نمی‌شوند
-        }
-    }
-
-    // خواندن لاگ‌ها
-    fun readLogs(): String {
-        val ctx = context ?: return "No context"
-        return try {
-            val file = File(ctx.filesDir, logFileName)
-            if (file.exists()) file.readText() else "No logs yet"
-        } catch (e: Exception) {
-            "Error reading logs: ${e.message}"
         }
     }
 
@@ -271,6 +279,20 @@ object Sender {
             sdf.format(date)
         } catch (e: Exception) {
             time.toString()
+        }
+    }
+
+    private suspend fun log(message: String) {
+        logMutex.withLock {
+            withContext(Dispatchers.IO) {
+                try {
+                    val ctx = context ?: return@withContext
+                    val file = File(ctx.filesDir, logFileName)
+                    val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
+                    file.appendText("[$timestamp] $message\n")
+                } catch (_: Exception) {
+                }
+            }
         }
     }
 }
