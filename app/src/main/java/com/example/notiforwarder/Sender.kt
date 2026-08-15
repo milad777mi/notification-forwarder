@@ -129,15 +129,11 @@ object Sender {
                     }
                     "rubika_user", "rubika_channel" -> {
                         url = URL("https://botapi.rubika.ir/v3/${RUBIKA_BOT_TOKEN}/sendMessage")
-                        val peer = JSONObject()
-                        val typeStr = if (type == "rubika_user") "User" else "Channel"
-                        peer.put("type", typeStr)
-                        // حذف پیشوند b یا c
-                        peer.put("id", chatId.removePrefix("b").removePrefix("c"))
-                        payload.put("peer", peer)
+                        // استفاده مستقیم از chat_id
+                        payload.put("chat_id", chatId)
                         payload.put("text", message)
-                        // افزودن random_id یکتا برای روبیکا
-                        payload.put("random_id", generateRandomId())
+                        // افزودن random_id (روبیکا نیاز دارد)
+                        payload.put("random_id", UUID.randomUUID().toString())
                     }
                     else -> return@withContext false
                 }
@@ -160,7 +156,6 @@ object Sender {
                 log("API response $type $chatId: code=$code, body=${response.take(200)}")
 
                 if (type.startsWith("rubika")) {
-                    // برای روبیکا فقط status OK موفق است
                     val jsonResp = runCatching { JSONObject(response) }.getOrNull()
                     val status = jsonResp?.optString("status") ?: ""
                     status == "OK"
@@ -172,10 +167,6 @@ object Sender {
                 false
             }
         }
-    }
-
-    private fun generateRandomId(): Long {
-        return (System.currentTimeMillis() * 1000) + (Math.random() * 1000).toLong()
     }
 
     private suspend fun saveToQueue(payload: JSONObject) {
