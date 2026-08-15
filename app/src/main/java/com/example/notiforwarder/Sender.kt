@@ -30,7 +30,6 @@ object Sender {
     private const val logFileName = "sender_logs.txt"
 
     private val mutex = Mutex()
-    private val logMutex = Mutex()
 
     fun init(appContext: Context) {
         context = appContext.applicationContext
@@ -47,13 +46,11 @@ object Sender {
         if (BALE_BOT_TOKEN.isBlank() && RUBIKA_BOT_TOKEN.isBlank()) return
 
         val message = buildMessage(app, pkg, title, text, time)
-
         val destinations = buildDestinations()
 
         var allFailed = true
         for ((type, chatId) in destinations) {
-            val success = sendToDestination(type, chatId, message)
-            if (success) {
+            if (sendToDestination(type, chatId, message)) {
                 allFailed = false
             }
         }
@@ -72,7 +69,6 @@ object Sender {
         }
     }
 
-    // تست ارسال پیام به همه مقصدها
     suspend fun testSend(): Boolean {
         log("Test send started")
         val message = "🚀 تست ارسال از NotiForwarder"
@@ -85,15 +81,15 @@ object Sender {
 
         var anySuccess = false
         for ((type, chatId) in destinations) {
-            val success = sendToDestination(type, chatId, message)
-            if (success) anySuccess = true
+            if (sendToDestination(type, chatId, message)) {
+                anySuccess = true
+            }
         }
 
         log("Test send finished, anySuccess=$anySuccess")
         return anySuccess
     }
 
-    // خواندن لاگ‌ها
     suspend fun readLogs(): String {
         return mutex.withLock {
             withContext(Dispatchers.IO) {
@@ -146,7 +142,7 @@ object Sender {
                     }
                     "rubika_user", "rubika_channel" -> {
                         url = URL("https://botapi.rubika.ir/v3/${RUBIKA_BOT_TOKEN}/sendMessage")
-                        payload.put("peer_id", chatId)   // ✅ اصلاح شد
+                        payload.put("peer_id", chatId)   // اصلاح شد
                         payload.put("text", message)
                     }
                     else -> return@withContext false
@@ -174,11 +170,11 @@ object Sender {
                 log("API response $type $chatId: code=$code, body=$body")
 
                 if (code !in 200..299) {
-                    log("Test failed to $type ($chatId)")
+                    log("Failed to $type ($chatId)")
                     return@withContext false
                 }
 
-                // بررسی وضعیت واقعی پاسخ روبیکا
+                // بررسی وضعیت واقعی روبیکا
                 if (type.startsWith("rubika")) {
                     val json = JSONObject(body)
                     val status = json.optString("status")
@@ -188,7 +184,7 @@ object Sender {
                     }
                 }
 
-                log("Test success to $type ($chatId)")
+                log("Success to $type ($chatId)")
                 true
             } catch (e: Exception) {
                 log("Error sending to $type $chatId: ${e.message}")
@@ -236,8 +232,8 @@ object Sender {
                             val time = json.getLong("time")
 
                             val message = buildMessage(app, pkg, title, text, time)
-
                             val destinations = buildDestinations()
+
                             var allFailed = true
                             for ((type, chatId) in destinations) {
                                 if (sendToDestination(type, chatId, message)) {
@@ -282,17 +278,14 @@ object Sender {
         }
     }
 
-    private suspend fun log(message: String) {
-        logMutex.withLock {
-            withContext(Dispatchers.IO) {
-                try {
-                    val ctx = context ?: return@withContext
-                    val file = File(ctx.filesDir, logFileName)
-                    val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
-                    file.appendText("[$timestamp] $message\n")
-                } catch (_: Exception) {
-                }
-            }
+    @Synchronized
+    private fun log(message: String) {
+        try {
+            val ctx = context ?: return
+            val file = File(ctx.filesDir, logFileName)
+            val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
+            file.appendText("[$timestamp] $message\n")
+        } catch (_: Exception) {
         }
     }
 }
